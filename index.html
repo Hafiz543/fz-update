@@ -5,6 +5,8 @@
 <style>
 :root{--bg:#0c1325;--card:#111b31;--ink:#eaf0fa;--mute:#9fb0cb;--pri:#63a4ff;--ps:#1a2c4d;--line:#22355c;--bad:#f28b8b;--bs:#3a2236;--ok:#6fd0a0;--os:#12342b;color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 body{margin:0;min-height:100vh;background:linear-gradient(180deg,#17294b 0,#0b1020 460px) no-repeat,#0b1020;color:var(--ink);font:15px/1.4 system-ui,Roboto,sans-serif;padding-bottom:96px}
 .w{max-width:640px;margin:0 auto;padding:0 14px}
 header{display:flex;justify-content:space-between;align-items:center;padding:calc(14px + env(safe-area-inset-top)) 0 10px}
@@ -43,7 +45,7 @@ small,.sub{color:var(--mute);font-size:12.5px}
 label{display:block;margin:14px 0 6px;font-weight:600;font-size:13.5px}
 .row{display:flex;gap:8px}.acts{display:flex;gap:8px;margin:12px 0}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.chip{background:var(--ps);color:var(--pri);border-radius:12px;padding:0 14px;min-height:42px;font-weight:600}
+.chip.o{background:var(--card);min-height:38px;font-size:13px}.chip{background:var(--ps);color:var(--pri);border-radius:12px;padding:0 14px;min-height:42px;font-weight:600}
 .sum{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:16px 0;display:grid;gap:4px}
 .sum div{display:flex;justify-content:space-between}.sum .t{font-weight:700;font-size:16px;border-top:1px solid var(--line);padding-top:6px;margin-top:2px}
 .hero{background:var(--ps);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:2px}.big{font-size:26px;font-weight:700}
@@ -73,7 +75,7 @@ label{display:block;margin:14px 0 6px;font-weight:600;font-size:13.5px}
 <button class="fab" data-act="addCust" id="fab">+ Pelanggan</button>
 <div id="toast"></div><input type="file" id="imp" accept=".json,application/json" hidden>
 <script>
-const APP_V=4;
+const APP_V=6;
 const KEY='fzdm_v4',$=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rp=n=>(n<0?'-':'')+'Rp'+Math.abs(Math.round(n)).toLocaleString('id-ID'),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fmt=t=>new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -98,6 +100,9 @@ function sortHTML(){const S=db.settings.sort,L=SL[S.by]||SL.recent;
  return`<label style="margin-top:4px">Urutkan berdasarkan</label><div style="display:grid;gap:8px">${Object.keys(SL).map(k=>`<button class="btn ${S.by===k?'pri':''}" data-act="sortBy" data-v="${k}">${SL[k][0]}</button>`).join('')}</div>
 <label>Urutan</label><div class="seg"><button class="${S.dir==='asc'?'on':''}" data-act="sortDir" data-v="asc">${L[1][0]}</button><button class="${S.dir==='desc'?'on':''}" data-act="sortDir" data-v="desc">${L[1][1]}</button></div>
 <div class="acts"><button class="btn" data-act="close">Selesai</button></div>`}
+const dt=t=>new Date(t).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+function copyTxt(t){const ok=()=>toast('Tersalin'),fb=()=>{try{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;top:0;opacity:0';document.body.appendChild(a);a.select();const r=document.execCommand('copy');a.remove();r?ok():toast('Gagal menyalin')}catch(e){toast('Gagal menyalin')}};
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb()}
 let undoFn=null;function toast(m,undo){const t=$('#toast');t.innerHTML=esc(m)+(undo?' <button class="lnk" data-act="undo">Batalkan</button>':'');undoFn=undo||null;t.style.pointerEvents=undo?'auto':'none';t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>{t.classList.remove('on');undoFn=null},undo?6000:2200)}
 /* ===== modal stack + Back button ===== */
 let lpUntil=0;const stack=[],topM=()=>stack[stack.length-1],$m=s=>topM().el.querySelector(s);
@@ -122,7 +127,7 @@ function refresh(){save();render();stack.forEach(m=>{if(m.render)m.mb.innerHTML=
 /* ===== main render ===== */
 function render(){
  const dd=db.debts,sisa=dd.reduce((a,d)=>a+rem(d),0),n=dd.filter(d=>rem(d)>0).length;
- $('#stats').innerHTML=`<div class="st"><small>Pelanggan</small><b>${db.customers.length}</b></div><div class="st"><small>Sisa hutang</small><b>${rp(sisa)}</b></div><div class="st"><small>Belum lunas</small><b>${n}</b></div>`;
+ $('#stats').innerHTML=`<div class="st"><small>Pelanggan</small><b>${db.customers.length}</b></div><div class="st"><small>Sisa hutang <button class="lnk" style="padding:2px 6px" data-act="cpAll" aria-label="Salin">⧉</button></small><b>${rp(sisa)}</b></div><div class="st"><small>Belum lunas</small><b>${n}</b></div>`;
  $('#tc').classList.toggle('on',tab==='c');$('#th').classList.toggle('on',tab==='h');
  $('#pc').hidden=tab!=='c';$('#ph').hidden=tab!=='h';$('#fab').hidden=tab!=='c';
  const v=db.settings.view;$('#vt').textContent=v==='grid'?'☰':'▦';$('#vt').setAttribute('aria-label',v==='grid'?'Ganti ke tampilan List':'Ganti ke tampilan Grid');
@@ -142,11 +147,12 @@ function render(){
 /* ===== detail ===== */
 function debtHTML(d){const r=rem(d),p=paid(d),st=r===0?['Lunas','ok']:p>0?['Sebagian','pt']:['Belum lunas',''];
  return`<div class="tx" data-tx="${d.id}"><div class="txh"><div><b>${rp(tot(d))}</b><br><small>Pokok ${rp(d.principal)} + Admin ${rp(d.admin)}</small></div><span class="bd ${st[1]}">${st[0]}</span></div>
-<small>${fmt(d.ts)}${d.note?' · '+esc(d.note):''}</small><div class="kv"><span>Dibayar ${rp(p)}</span><span>Sisa <b class="${r?'bad':'good'}">${rp(r)}</b></span></div>
+<div class="kv"><small>${fmt(d.ts)}${d.note?' · '+esc(d.note):''}</small><button class="lnk" style="padding:0 4px" data-act="cpTx" data-id="${d.id}">⧉ Salin</button></div><div class="kv"><span>Dibayar ${rp(p)}</span><span>Sisa <b class="${r?'bad':'good'}">${rp(r)}</b></span></div>
 ${d.pays.slice().sort((a,b)=>b.ts-a.ts).map(y=>`<div class="pay"><span>${y.type==='lunas'?'Pelunasan':'Bayar'} ${rp(y.amt)}<small>${fmt(y.ts)}${y.note?' · '+esc(y.note):''}</small></span><button class="lnk" data-act="ePay" data-id="${d.id}" data-p="${y.id}">Edit</button><button class="lnk bad" data-act="dPay" data-id="${d.id}" data-p="${y.id}">Hapus</button></div>`).join('')}
 <div class="a4">${r>0?`<button class="btn sm" data-act="pay" data-id="${d.id}">Bayar</button><button class="btn sm" data-act="lunas" data-id="${d.id}">Lunasi</button>`:'<span></span><span></span>'}<button class="btn sm" data-act="eDebt" data-id="${d.id}">Edit</button><button class="btn sm" style="color:var(--bad)" data-act="dDebt" data-id="${d.id}">Hapus</button></div></div>`}
 function detailHTML(id){const c=cust(id);if(!c)return'';const ds=cD(id).sort((a,b)=>b.ts-a.ts),r=cR(id),n=ds.filter(d=>rem(d)>0).length;
- return`<div class="hero"><small>Total sisa hutang</small><div class="big ${r?'bad':'good'}">${r?rp(r):'Lunas'}</div><small>${ds.length} transaksi · ${n} belum lunas</small></div>
+ return`<div class="hero"><small>Total sisa hutang</small><div class="big ${r?'bad':'good'}">${r?rp(r):'Lunas'}</div><small>${ds.length} transaksi · ${n} belum lunas</small>
+<div class="chips" style="margin-top:8px"><button class="chip o" data-act="cpTotal" data-id="${id}">⧉ Salin total</button><button class="chip o" data-act="cpDetail" data-id="${id}">⧉ Salin rincian</button></div></div>
 <div class="acts"><button class="btn pri" data-act="addDebt" data-id="${id}">+ Hutang</button></div>
 <div class="acts" style="margin-top:0"><button class="btn" data-act="payC" data-id="${id}" ${r?'':'disabled'}>Bayar Sebagian</button><button class="btn" data-act="payAll" data-id="${id}" ${r?'':'disabled'}>Lunasi Semua</button></div>
 ${ds.map(debtHTML).join('')||'<p class="empty">Belum ada transaksi.</p>'}<button class="btn ghost danger" data-act="delCust" data-id="${id}">Hapus Pelanggan</button>`}
@@ -225,6 +231,12 @@ function act(a,d,b){const t=topM();switch(a){
  case'saveCust':{const n=$m('#f-name').value.trim();if(!n)return toast('Nama wajib diisi');if(db.customers.some(c=>c.name.toLowerCase()===n.toLowerCase()))return toast('Nama sudah ada');
   db.customers.push({id:uid(),name:n,ts:Date.now()});closeM();refresh();toast('Pelanggan ditambahkan');break}
  case'detail':{const c=cust(d.id);openM(c.name,()=>detailHTML(d.id));break}
+
+ case'cpAll':copyTxt('Total sisa hutang semua pelanggan: '+rp(db.debts.reduce((a,x)=>a+rem(x),0)));break;
+ case'cpTotal':{const c=cust(d.id);if(c)copyTxt(c.name+': total sisa hutang '+rp(cR(d.id)));break}
+ case'cpTx':{const x=debt(d.id),c=x&&cust(x.cid);if(c)copyTxt(c.name+' · '+dt(x.ts)+(x.note?' ('+x.note+')':'')+': hutang '+rp(tot(x))+', dibayar '+rp(paid(x))+', sisa '+rp(rem(x)));break}
+ case'cpDetail':{const c=cust(d.id);if(!c)break;const ds=cD(d.id).filter(x=>rem(x)>0).sort((a,b)=>a.ts-b.ts);
+  copyTxt('Rincian hutang '+c.name+'\n'+(ds.map((x,i)=>(i+1)+'. '+dt(x.ts)+(x.note?' ('+x.note+')':'')+': '+rp(tot(x))+(paid(x)?', dibayar '+rp(paid(x)):'')+', sisa '+rp(rem(x))).join('\n')||'Tidak ada hutang')+'\nTotal sisa: '+rp(cR(d.id)));break}
  case'addDebt':debtForm(d.id);break;
  case'sort':db.settings.sort=db.settings.sort||{by:'recent',dir:'desc'};openM('Urutkan pelanggan',sortHTML);break;
  case'sortBy':db.settings.sort={by:d.v,dir:d.v==='name'?'asc':'desc'};refresh();break;
@@ -288,6 +300,7 @@ function act(a,d,b){const t=topM();switch(a){
  case'impb':$('#imp').click();break;
  case'yes':{const cb=t.cb,ex=t.extra||0;cb();history.go(-(1+ex));break}
 }}
+document.addEventListener('contextmenu',e=>{if(!e.target.closest('input,textarea'))e.preventDefault()});
 document.addEventListener('click',e=>{if(Date.now()<lpUntil){e.preventDefault();return}const b=e.target.closest('[data-act]');if(b)act(b.dataset.act,b.dataset,b)});
 document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='q'||el.id==='hq'){render();return}
