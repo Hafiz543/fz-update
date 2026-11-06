@@ -67,19 +67,19 @@ label{display:block;margin:14px 0 6px;font-weight:600;font-size:13.5px}
 <header><div><h1>FZ <span>Debt Manager</span></h1><p>Catatan hutang pelanggan · Offline</p></div><button class="ic" data-act="settings" aria-label="Pengaturan">⚙️</button></header>
 <div class="stats" id="stats"></div>
 <div class="tabs"><button data-act="tab" data-t="c" id="tc">Pelanggan</button><button data-act="tab" data-t="h" id="th">Riwayat</button></div>
-<div id="pc"><div class="bar"><input id="q" type="search" placeholder="Cari pelanggan…" autocomplete="off"><button class="ic" data-act="view" data-v="grid" id="vg" aria-label="Grid">▦</button><button class="ic" data-act="view" data-v="list" id="vl" aria-label="List">☰</button></div><div id="cl"></div></div>
+<div id="pc"><div class="bar"><input id="q" type="search" placeholder="Cari pelanggan…" autocomplete="off"><button class="ic" data-act="sort" id="vs" aria-label="Urutkan">⇅</button><button class="ic" data-act="viewT" id="vt"></button></div><div id="cl"></div></div>
 <div id="ph" hidden><div class="bar"><input id="hq" type="search" placeholder="Cari riwayat (nama, catatan, nominal)…" autocomplete="off"></div><div id="hl"></div></div>
 </div>
 <button class="fab" data-act="addCust" id="fab">+ Pelanggan</button>
 <div id="toast"></div><input type="file" id="imp" accept=".json,application/json" hidden>
 <script>
-const APP_V=2;
+const APP_V=4;
 const KEY='fzdm_v4',$=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rp=n=>(n<0?'-':'')+'Rp'+Math.abs(Math.round(n)).toLocaleString('id-ID'),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fmt=t=>new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 const loc=t=>new Date(t-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);
 const num=el=>parseInt((el.value||'').replace(/\D/g,''))||0;
-const def=()=>({customers:[],debts:[],settings:{tiers:[{min:1,max:20000,fee:2000},{min:20001,max:50000,fee:3000},{min:50001,max:100000,fee:5000}],useAdmin:true,quick:[5000,10000,15000,20000,50000],view:'grid',tap:{on:true,step:5000,min:3,sec:2},updateUrl:'https://raw.githubusercontent.com/Hafiz543/fz-update/main/'}});
+const def=()=>({customers:[],debts:[],settings:{tiers:[{min:1,max:20000,fee:2000},{min:20001,max:50000,fee:3000},{min:50001,max:100000,fee:5000}],useAdmin:true,quick:[5000,10000,15000,20000,50000],view:'grid',sort:{by:'recent',dir:'desc'},tap:{on:true,step:5000,min:3,sec:2},updateUrl:'https://raw.githubusercontent.com/Hafiz543/fz-update/main/'}});
 function norm(j){const x=j&&j.data||j;if(!x||!Array.isArray(x.customers)||!Array.isArray(x.debts))throw 0;
  const ids=new Set(x.customers.map(c=>c.id));
  x.debts.forEach(d=>{if(!ids.has(d.cid)||!(d.principal>=0)||!(d.admin>=0)||!Array.isArray(d.pays)||d.pays.some(p=>!(p.amt>0))||d.pays.reduce((a,p)=>a+p.amt,0)>d.principal+d.admin)throw 0});
@@ -93,6 +93,11 @@ const cust=id=>db.customers.find(c=>c.id===id),debt=id=>db.debts.find(d=>d.id===
 function fee(p){const t=db.settings.tiers;if(p<=0||!t.length)return 0;return(t.find(x=>p>=x.min&&p<=x.max)||t[t.length-1]).fee}
 const act_ts=c=>Math.max(c.ts||0,...cD(c.id).flatMap(d=>[d.ts,...d.pays.map(p=>p.ts)]));
 let tab='c',tt;
+const SL={recent:['Aktivitas terakhir',['Terlama','Terbaru']],name:['Nama',['A–Z','Z–A']],debt:['Sisa hutang',['Terkecil','Terbesar']],open:['Transaksi belum lunas',['Tersedikit','Terbanyak']]};
+function sortHTML(){const S=db.settings.sort,L=SL[S.by]||SL.recent;
+ return`<label style="margin-top:4px">Urutkan berdasarkan</label><div style="display:grid;gap:8px">${Object.keys(SL).map(k=>`<button class="btn ${S.by===k?'pri':''}" data-act="sortBy" data-v="${k}">${SL[k][0]}</button>`).join('')}</div>
+<label>Urutan</label><div class="seg"><button class="${S.dir==='asc'?'on':''}" data-act="sortDir" data-v="asc">${L[1][0]}</button><button class="${S.dir==='desc'?'on':''}" data-act="sortDir" data-v="desc">${L[1][1]}</button></div>
+<div class="acts"><button class="btn" data-act="close">Selesai</button></div>`}
 let undoFn=null;function toast(m,undo){const t=$('#toast');t.innerHTML=esc(m)+(undo?' <button class="lnk" data-act="undo">Batalkan</button>':'');undoFn=undo||null;t.style.pointerEvents=undo?'auto':'none';t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>{t.classList.remove('on');undoFn=null},undo?6000:2200)}
 /* ===== modal stack + Back button ===== */
 let lpUntil=0;const stack=[],topM=()=>stack[stack.length-1],$m=s=>topM().el.querySelector(s);
@@ -120,11 +125,14 @@ function render(){
  $('#stats').innerHTML=`<div class="st"><small>Pelanggan</small><b>${db.customers.length}</b></div><div class="st"><small>Sisa hutang</small><b>${rp(sisa)}</b></div><div class="st"><small>Belum lunas</small><b>${n}</b></div>`;
  $('#tc').classList.toggle('on',tab==='c');$('#th').classList.toggle('on',tab==='h');
  $('#pc').hidden=tab!=='c';$('#ph').hidden=tab!=='h';$('#fab').hidden=tab!=='c';
- const v=db.settings.view;$('#vg').classList.toggle('on',v==='grid');$('#vl').classList.toggle('on',v==='list');
- $('#vg').style.background=v==='grid'?'var(--ps)':'';$('#vl').style.background=v==='list'?'var(--ps)':'';
+ const v=db.settings.view;$('#vt').textContent=v==='grid'?'☰':'▦';$('#vt').setAttribute('aria-label',v==='grid'?'Ganti ke tampilan List':'Ganti ke tampilan Grid');
  const q=$('#q').value.trim().toLowerCase();
- const cs=db.customers.filter(c=>c.name.toLowerCase().includes(q)).sort((a,b)=>act_ts(b)-act_ts(a));
- $('#cl').innerHTML=cs.length?`<div class="grid ${v==='list'?'list':''}">`+cs.map(c=>{const r=cR(c.id),k=cD(c.id).filter(d=>rem(d)>0).length;
+ const cs=db.customers.filter(c=>c.name.toLowerCase().includes(q))
+ ;const S=db.settings.sort||{by:'recent',dir:'desc'},sg=S.dir==='asc'?1:-1,SL0=SL[S.by]||SL.recent;
+ cs.sort((a,b)=>{let r;if(S.by==='name')r=a.name.localeCompare(b.name,'id',{sensitivity:'base'});else if(S.by==='debt')r=cR(a.id)-cR(b.id);
+  else if(S.by==='open')r=cD(a.id).filter(d=>rem(d)>0).length-cD(b.id).filter(d=>rem(d)>0).length;else r=act_ts(a)-act_ts(b);
+  return r*sg||a.name.localeCompare(b.name,'id',{sensitivity:'base'})});
+ $('#cl').innerHTML=cs.length?`<div class="sub" style="margin:0 2px 8px">Urut: ${SL0[0]} · ${SL0[1][S.dir==='asc'?0:1]}</div><div class="grid ${v==='list'?'list':''}">`+cs.map(c=>{const r=cR(c.id),k=cD(c.id).filter(d=>rem(d)>0).length;
   return`<div class="cc" data-act="detail" data-id="${c.id}" role="button"><div class="av" role="button" data-act="avTap" data-id="${c.id}">${esc(c.name[0].toUpperCase())}</div><div class="inf" style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="${r?'bad':'good'}" style="font-weight:650">${r?rp(r):'Lunas'}</div><small>${k} belum lunas</small></div><button class="btn sm pri" style="${v==='list'?'width:auto;':''}" data-act="addDebt" data-id="${c.id}">+ Hutang</button></div>`}).join('')+'</div>'
   :`<p class="empty">${db.customers.length?'Tidak ditemukan.':'Belum ada pelanggan. Tekan “+ Pelanggan”.'}</p>`;
  if(tab==='h'){const ev=[];db.debts.forEach(d=>{const c=cust(d.cid);if(!c)return;ev.push({did:d.id,ts:d.ts,k:'Tambah hutang',a:tot(d),c:c.name,n:d.note,cls:'bad',s:'+'});d.pays.forEach(p=>ev.push({did:d.id,ts:p.ts,k:p.type==='lunas'?'Pelunasan':'Bayar sebagian',a:p.amt,c:c.name,n:p.note,cls:'good',s:'−'}))});
@@ -210,6 +218,7 @@ function pay(d,amt,note,ts,type){d.pays.push({id:uid(),amt,note:note||'',ts,type
 function act(a,d,b){const t=topM();switch(a){
  case'close':closeM();break;
  case'tab':tab=d.t;render();break;
+ case'viewT':db.settings.view=db.settings.view==='grid'?'list':'grid';save();render();break;
  case'view':db.settings.view=d.v;save();render();break;
  case'settings':openSettings();break;
  case'addCust':{const m=openM('Tambah Pelanggan',()=>`<label>Nama pelanggan</label><input id="f-name" maxlength="40" autocomplete="off"><div class="acts"><button class="btn pri" data-act="saveCust">Simpan</button></div>`);m.f={t:'c'};setTimeout(()=>m.el.querySelector('#f-name').focus(),250);break}
@@ -217,6 +226,9 @@ function act(a,d,b){const t=topM();switch(a){
   db.customers.push({id:uid(),name:n,ts:Date.now()});closeM();refresh();toast('Pelanggan ditambahkan');break}
  case'detail':{const c=cust(d.id);openM(c.name,()=>detailHTML(d.id));break}
  case'addDebt':debtForm(d.id);break;
+ case'sort':db.settings.sort=db.settings.sort||{by:'recent',dir:'desc'};openM('Urutkan pelanggan',sortHTML);break;
+ case'sortBy':db.settings.sort={by:d.v,dir:d.v==='name'?'asc':'desc'};refresh();break;
+ case'sortDir':db.settings.sort.dir=d.v;refresh();break;
  case'avTap':avTap(d.id);break;
  case'tapon':t.f.tapon=d.v==='1';upd(t);break;
  case'undo':{if(undoFn){const f=undoFn;undoFn=null;$('#toast').classList.remove('on');f()}break}
