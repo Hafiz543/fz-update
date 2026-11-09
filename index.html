@@ -81,7 +81,7 @@ label{display:block;margin:14px 0 6px;font-weight:600;font-size:13.5px}
 <button class="fab" data-act="addCust" id="fab">+ Pelanggan</button>
 <div id="toast"></div><input type="file" id="imp" accept=".json,application/json" hidden>
 <script>
-const APP_V=10;
+const APP_V=13;
 const KEY='fzdm_v4',$=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rp=n=>(n<0?'-':'')+'Rp'+Math.abs(Math.round(n)).toLocaleString('id-ID'),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const fmt=t=>new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -173,9 +173,9 @@ const p2=n=>String(n).padStart(2,'0'),dk=t=>{const d=new Date(t);return d.getFul
 const mlab=m=>MN[+m.slice(5)-1]+' '+m.slice(0,4),mAdd=(m,n)=>{const d=new Date(+m.slice(0,4),+m.slice(5)-1+n,1);return d.getFullYear()+'-'+p2(d.getMonth()+1)};
 const dayStart=s=>new Date(s+'T00:00:00').getTime(),dayEnd=s=>new Date(s+'T23:59:59.999').getTime();
 let fm=mk(Date.now()),fsub='c',fr={a:mk(Date.now())+'-01',b:dk(Date.now())};
-function splitOver(X,S){S=S||db.settings;if(!S.useAdmin||X<=0)return{p:X,a:0};const t=S.tiers;let best=0;
+function splitOver(X,S,mode){S=S||db.settings;mode=mode||(S.useAdmin?'adm':'noadm');if(X<=0||mode==='noadm')return{p:Math.max(0,X),a:0};if(mode==='full')return{p:0,a:X};const t=S.tiers;let best=0;
  t.forEach((tr,i)=>{const hi=i===t.length-1?Infinity:tr.max,p=Math.min(X-tr.fee,hi);if(p>=tr.min&&p>best)best=p});return best>0?{p:best,a:X-best}:{p:X,a:0}}
-function addDirect(cid,X,ts,note){const sp=splitOver(X);db.debts.push({id:uid(),cid,principal:sp.p,admin:sp.a,note:note||'Pembayaran langsung',ts,direct:true,pays:[{id:uid(),amt:X,note:'',ts,type:'lunas'}]})}
+function addDirect(cid,X,ts,note,mode){const sp=splitOver(X,undefined,mode);db.debts.push({id:uid(),cid,principal:sp.p,admin:sp.a,note:note||'Pembayaran langsung',ts,direct:true,pays:[{id:uid(),amt:X,note:'',ts,type:'lunas'}]})}
 function splitPay(d){let cb=0;return d.pays.slice().sort((a,b)=>a.ts-b.ts).map(p=>{const ca=cb+p.amt,pk=Math.max(0,Math.min(ca,d.principal)-Math.min(cb,d.principal));cb=ca;return{p,pk,ad:p.amt-pk}})}
 function finEv(){const E=[],nm=id=>(cust(id)||{}).name||'';
  db.debts.forEach(d=>{if(!d.direct)E.push({k:'lend',ts:d.ts,a:d.principal,c:nm(d.cid),cid:d.cid,did:d.id});splitPay(d).forEach(x=>E.push({k:'pay',ts:x.p.ts,a:x.p.amt,pk:x.pk,ad:x.ad,c:nm(d.cid),cid:d.cid,did:d.id,dir:!!d.direct}))});
@@ -236,11 +236,13 @@ function clrForm(cid){const m=openM('Bersihkan Riwayat Lunas',()=>`<div class="s
 <div id="c-d" hidden><label>Sebelum tanggal</label><input id="f-cd" type="date" value="${dk(Date.now()-30*864e5)}"></div><div class="sum" id="f-sum"></div><button class="btn pri" data-act="doClr">Bersihkan</button>`);m.f={t:'clr',cid,mode:'all'};upd(m)}
 /* ===== forms ===== */
 function seg(f){return`<div class="seg"><button data-act="adm" data-v="1">Pakai Admin</button><button data-act="adm" data-v="0">Tanpa Admin</button></div>`}
-function segSync(m){m.el.querySelectorAll('[data-act=cmode]').forEach(b=>b.classList.toggle('on',b.dataset.v===m.f.mode));m.el.querySelectorAll('[data-act=lend]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.lend));m.el.querySelectorAll('[data-act=tapon]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.tapon));m.el.querySelectorAll('[data-act=adm]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.adm))}
+function segSync(m){m.el.querySelectorAll('[data-act=ovm]').forEach(b=>b.classList.toggle('on',b.dataset.v===m.f.ov));m.el.querySelectorAll('[data-act=cmode]').forEach(b=>b.classList.toggle('on',b.dataset.v===m.f.mode));m.el.querySelectorAll('[data-act=lend]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.lend));m.el.querySelectorAll('[data-act=tapon]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.tapon));m.el.querySelectorAll('[data-act=adm]').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===m.f.adm))}
 function upd(m){segSync(m);const f=m.f,s=m.el.querySelector('#f-sum');if(!s)return;
  if(f.t==='debt'){const a=num(m.el.querySelector('#f-amt')),fe=f.adm?fee(a):0;s.innerHTML=`<div><span>Pokok</span><span>${rp(a)}</span></div><div><span>Admin</span><span>${rp(fe)}</span></div><div class="t"><span>Total</span><span>${rp(a+fe)}</span></div>`}
- else if(f.t==='payc'){const a=num(m.el.querySelector('#f-amt')),T=f.T,al=alloc(f.cid,Math.min(a,T)),ov=Math.max(0,a-T);
-  s.innerHTML=(al.length?`<small>Dibagi ke transaksi terlama lebih dulu:</small>`+al.map(x=>`<div><span>${rp(tot(x.d))} · ${sd(x.d.ts)}</span><span>${rp(x.a)}${x.a===rem(x.d)?' ✓':''}</span></div>`).join(''):'')+(ov?`<div><span>Kelebihan → pembayaran langsung</span><span>${rp(ov)}</span></div><small>Pokok ${rp(splitOver(ov).p)} + admin ${rp(splitOver(ov).a)}</small>`:'')+`<div class="t"><span>Sisa hutang setelah bayar</span><span>${rp(Math.max(0,T-a))}</span></div>`}
+ else if(f.t==='pay'){const a=num(m.el.querySelector('#f-amt')),ov=f.pid?0:Math.max(0,a-f.mx),sp=splitOver(ov,undefined,f.ov);m.el.querySelector('#f-ovb').hidden=!ov;s.hidden=!ov;
+  s.innerHTML=ov?`<div><span>Kelebihan → pembayaran langsung</span><span>${rp(ov)}</span></div><small>Pokok ${rp(sp.p)} → Kas · Keuntungan ${rp(sp.a)}</small>`:''}
+ else if(f.t==='payc'){const a=num(m.el.querySelector('#f-amt')),T=f.T,al=alloc(f.cid,Math.min(a,T)),ov=Math.max(0,a-T);m.el.querySelector('#f-ovb').hidden=!ov;
+  s.innerHTML=(al.length?`<small>Dibagi ke transaksi terlama lebih dulu:</small>`+al.map(x=>`<div><span>${rp(tot(x.d))} · ${sd(x.d.ts)}</span><span>${rp(x.a)}${x.a===rem(x.d)?' ✓':''}</span></div>`).join(''):'')+(ov?`<div><span>Kelebihan → pembayaran langsung</span><span>${rp(ov)}</span></div><small>Pokok ${rp(splitOver(ov,undefined,f.ov).p)} → Kas · Keuntungan ${rp(splitOver(ov,undefined,f.ov).a)}</small>`:'')+`<div class="t"><span>Sisa hutang setelah bayar</span><span>${rp(Math.max(0,T-a))}</span></div>`}
  else if(f.t==='clr'){const cut=dayStart(m.el.querySelector('#f-cd').value);m.el.querySelector('#c-d').hidden=f.mode!=='old';
   const ds=clrList(f.cid,f.mode,cut);s.innerHTML=f.mode==='old'&&isNaN(cut)?'<small>Pilih tanggal.</small>':`<div><span>Transaksi lunas yang dibersihkan</span><span>${ds.length}</span></div><div class="t"><span>Total nominal</span><span>${rp(ds.reduce((a,x)=>a+tot(x),0))}</span></div>`}
  else if(f.t==='edebt'){const d=debt(f.id),t=num(m.el.querySelector('#f-pri'))+num(m.el.querySelector('#f-adm'));s.innerHTML=`<div><span>Total baru</span><span>${rp(t)}</span></div><div><span>Sudah dibayar</span><span>${rp(paid(d))}</span></div><div class="t"><span>Sisa baru</span><span class="${t<paid(d)?'bad':''}">${rp(t-paid(d))}</span></div>`}}
@@ -256,20 +258,22 @@ function eDebtForm(id){const d=debt(id);if(!d)return;
 <label>Admin</label><div class="row"><input id="f-adm" class="num" inputmode="numeric" value="${d.admin.toLocaleString('id-ID')}"><button class="btn" style="width:auto" data-act="autoadm">Otomatis</button></div>
 <label>Catatan</label><input id="f-note" maxlength="120" value="${esc(d.note)}"><div class="sum" id="f-sum"></div><button class="btn pri" data-act="saveEDebt">Simpan Perubahan</button>`);
  m.f={t:'edebt',id};upd(m)}
+const OVB=`<div id="f-ovb" hidden><label>Kelebihan bayar dicatat sebagai</label><div class="seg"><button style="padding:10px 4px;font-size:13px" data-act="ovm" data-v="adm">Dengan admin</button><button style="padding:10px 4px;font-size:13px" data-act="ovm" data-v="noadm">Tanpa admin</button><button style="padding:10px 4px;font-size:13px" data-act="ovm" data-v="full">Full keuntungan</button></div></div>`;
+const ovDef=()=>db.settings.useAdmin?'adm':'noadm';
 function payForm(id,pid){const d=debt(id);if(!d)return;const y=pid&&d.pays.find(p=>p.id===pid),mx=rem(d)+(y?y.amt:0);
- const m=openM(y?'Edit Pembayaran':'Pembayaran',()=>`<div class="sub">${y?'Sisa yang bisa dibayar':'Sisa hutang'}: <b>${rp(mx)}</b>${y?'':'<br><small>Kelebihan bayar dicatat sebagai pembayaran langsung (admin ikut dihitung).</small>'}</div><label>Jumlah bayar</label>
+ const m=openM(y?'Edit Pembayaran':'Pembayaran',()=>`<div class="sub">${y?'Sisa yang bisa dibayar':'Sisa hutang'}: <b>${rp(mx)}</b>${y?'':'<br><small>Kelebihan bayar dicatat sebagai pembayaran langsung.</small>'}</div><label>Jumlah bayar</label>
 <div class="row"><input id="f-amt" class="num" inputmode="numeric" placeholder="0" value="${y?y.amt.toLocaleString('id-ID'):''}"><button class="btn" style="width:auto" data-act="full" data-v="${mx}">Semua</button></div>
 <label>Tanggal &amp; waktu</label><input id="f-ts" type="datetime-local" value="${loc(y?y.ts:Date.now())}"><label>Catatan</label><input id="f-note" maxlength="120" value="${y?esc(y.note):''}" placeholder="Opsional">
-<div class="acts"><button class="btn pri" data-act="savePay">Simpan</button></div>`);m.f={t:'pay',id,pid,mx}}
+${OVB}<div class="sum" id="f-sum" hidden></div><div class="acts"><button class="btn pri" data-act="savePay">Simpan</button></div>`);m.f={t:'pay',id,pid,mx,ov:ovDef()};upd(m)}
 const sd=t=>new Date(t).toLocaleDateString('id-ID',{day:'2-digit',month:'short'});
 function alloc(cid,amt){let left=amt;const o=[];cD(cid).filter(d=>rem(d)>0).sort((a,b)=>a.ts-b.ts).forEach(d=>{if(left<=0)return;const a=Math.min(rem(d),left);o.push({d,a});left-=a});return o}
 function payCForm(cid){const c=cust(cid),T=cR(cid);if(!c)return;
- const m=openM('Bayar Hutang',()=>`<div class="sub">Pelanggan: <b>${esc(c.name)}</b><br>Total sisa hutang: <b>${rp(T)}</b><br><small>Kelebihan bayar dicatat sebagai pembayaran langsung (admin ikut dihitung).</small></div><label>Jumlah bayar</label>
+ const m=openM('Bayar Hutang',()=>`<div class="sub">Pelanggan: <b>${esc(c.name)}</b><br>Total sisa hutang: <b>${rp(T)}</b><br><small>Kelebihan bayar dicatat sebagai pembayaran langsung.</small></div><label>Jumlah bayar</label>
 <div class="row"><input id="f-amt" class="num" inputmode="numeric" placeholder="0" autocomplete="off"><button class="ic" data-act="clr" aria-label="Hapus nominal">✕</button></div>
 <div class="chips">${T>0?`<button class="chip" data-act="full" data-v="${Math.floor(T/2)}">Setengah</button><button class="chip" data-act="full" data-v="${T}">Semua</button>`:''}${db.settings.quick.map(v=>`<button class="chip" data-act="q" data-v="${v}">+${rp(v)}</button>`).join('')}</div>
 <label>Tanggal &amp; waktu</label><input id="f-ts" type="datetime-local" value="${loc(Date.now())}"><label>Catatan</label><input id="f-note" maxlength="120" placeholder="Opsional" autocomplete="off">
-<div class="sum" id="f-sum"></div><button class="btn pri" data-act="savePayC">Simpan Pembayaran</button>`);
- m.f={t:'payc',cid,T};upd(m)}
+${OVB}<div class="sum" id="f-sum"></div><button class="btn pri" data-act="savePayC">Simpan Pembayaran</button>`);
+ m.f={t:'payc',cid,T,ov:ovDef()};upd(m)}
 let tp={id:null,n:0,tm:0};
 function tpAmt(){const T=db.settings.tap;return tp.n>=T.min?(tp.n-T.min+1)*T.step:0}
 function tpEl(id){return document.querySelector(`.av[data-id="${id}"]`)}
@@ -338,6 +342,7 @@ function act(a,d,b){const t=topM();switch(a){
   ask('Bersihkan riwayat?',`<b>${ds.length} transaksi lunas</b> (total ${rp(T)}) beserta rincian pembayarannya dihapus dari pelanggan ini. Hasil keuangannya tetap tersimpan sebagai ringkasan. Transaksi yang belum lunas tidak disentuh.`,'Bersihkan',()=>{
    const snap={a:JSON.stringify(db.arch),ds:JSON.parse(JSON.stringify(ds))};archiveDebts(ds);const ids=new Set(ds.map(x=>x.id));db.debts=db.debts.filter(x=>!ids.has(x.id));refresh();
    toast(ds.length+' transaksi dibersihkan',()=>{db.arch=JSON.parse(snap.a);db.debts.push(...snap.ds);refresh()})},1,0);break}
+ case'ovm':t.f.ov=d.v;upd(t);break;
  case'addDebt':debtForm(d.id);break;
  case'sort':db.settings.sort=db.settings.sort||{by:'recent',dir:'desc'};openM('Urutkan pelanggan',sortHTML);break;
  case'sortBy':db.settings.sort={by:d.v,dir:d.v==='name'?'asc':'desc'};refresh();break;
@@ -348,7 +353,7 @@ function act(a,d,b){const t=topM();switch(a){
  case'payC':payCForm(d.id);break;
  case'savePayC':{const f=t.f,T=cR(f.cid),a=num($m('#f-amt')),ts=new Date($m('#f-ts').value).getTime();
   if(a<=0)return toast('Isi jumlah pembayaran');if(isNaN(ts))return toast('Tanggal tidak valid');
-  const note=$m('#f-note').value.trim(),ov=a-T;alloc(f.cid,Math.min(a,T)).forEach(x=>pay(x.d,x.a,note,ts,x.a===rem(x.d)?'lunas':'bayar'));if(ov>0)addDirect(f.cid,ov,ts,note);closeM();refresh();toast(ov>0?'Tersimpan, pembayaran langsung '+rp(ov):'Pembayaran '+rp(a)+' tersimpan');break}
+  const note=$m('#f-note').value.trim(),ov=a-T;alloc(f.cid,Math.min(a,T)).forEach(x=>pay(x.d,x.a,note,ts,x.a===rem(x.d)?'lunas':'bayar'));if(ov>0)addDirect(f.cid,ov,ts,note,f.ov);closeM();refresh();toast(ov>0?'Tersimpan, pembayaran langsung '+rp(ov):'Pembayaran '+rp(a)+' tersimpan');break}
  case'hOpen':{const x=debt(d.id),c=x&&cust(x.cid);if(!c)break;openM('Buka transaksi?',()=>`<p class="msg">Buka transaksi <b>${rp(tot(x))}</b> milik <b>${esc(c.name)}</b>?</p><div class="acts"><button class="btn" data-act="close">Batal</button><button class="btn pri" data-act="hGo" data-id="${x.id}">Lanjut</button></div>`);break}
  case'hGo':{const x=debt(d.id),c=x&&cust(x.cid);if(!c)return closeM();t.render=()=>detailHTML(c.id);t.el.querySelector('.mh b').textContent=c.name;t.mb.innerHTML=t.render();
   const el=t.mb.querySelector(`[data-tx="${x.id}"]`);if(el){el.scrollIntoView({block:'center'});el.classList.add('hl');setTimeout(()=>el.classList.remove('hl'),2200)}break}
@@ -364,7 +369,7 @@ function act(a,d,b){const t=topM();switch(a){
   db.debts.push({id:uid(),cid:t.f.cid,principal:a,admin:t.f.adm?fee(a):0,note:$m('#f-note').value.trim(),ts:Date.now(),pays:[]});closeM();refresh();toast('Hutang tersimpan');break}
  case'eDebt':eDebtForm(d.id);break;
  case'autoadm':{$m('#f-adm').value=fee(num($m('#f-pri'))).toLocaleString('id-ID');upd(t);break}
- case'saveEDebt':{const x=debt(t.f.id),p=num($m('#f-pri')),a=num($m('#f-adm'));if(p<=0)return toast('Nominal pokok harus lebih dari 0');
+ case'saveEDebt':{const x=debt(t.f.id),p=num($m('#f-pri')),a=num($m('#f-adm'));if(p<=0&&!x.direct)return toast('Nominal pokok harus lebih dari 0');if(p+a<=0)return toast('Total harus lebih dari 0');
   if(p+a<paid(x))return toast('Total tidak boleh kurang dari yang sudah dibayar ('+rp(paid(x))+')');
   x.principal=p;x.admin=a;x.note=$m('#f-note').value.trim();closeM();refresh();toast('Hutang diperbarui');break}
  case'dDebt':{const x=debt(d.id);ask('Hapus transaksi?',`Transaksi ${rp(tot(x))} beserta ${x.pays.length} riwayat pembayarannya akan dihapus permanen.`,'Hapus',()=>{db.debts=db.debts.filter(y=>y.id!==x.id);refresh()},0,1);break}
@@ -374,7 +379,7 @@ function act(a,d,b){const t=topM();switch(a){
  case'savePay':{const f=t.f,x=debt(f.id),a=num($m('#f-amt')),ts=new Date($m('#f-ts').value).getTime();
   if(a<=0)return toast('Isi jumlah pembayaran');if(a>f.mx&&f.pid)return toast('Melebihi sisa hutang ('+rp(f.mx)+')');if(isNaN(ts))return toast('Tanggal tidak valid');
   const note=$m('#f-note').value.trim();
-  if(f.pid){const y=x.pays.find(p=>p.id===f.pid);y.amt=a;y.ts=ts;y.note=note}else{const ap=Math.min(a,f.mx);if(ap>0)pay(x,ap,note,ts,ap===f.mx?'lunas':'bayar');if(a>f.mx)addDirect(x.cid,a-f.mx,ts,note)}
+  if(f.pid){const y=x.pays.find(p=>p.id===f.pid);y.amt=a;y.ts=ts;y.note=note}else{const ap=Math.min(a,f.mx);if(ap>0)pay(x,ap,note,ts,ap===f.mx?'lunas':'bayar');if(a>f.mx)addDirect(x.cid,a-f.mx,ts,note,f.ov)}
   closeM();refresh();toast(a>f.mx&&!f.pid?'Tersimpan, pembayaran langsung '+rp(a-f.mx):'Pembayaran tersimpan');break}
  case'dPay':ask('Hapus pembayaran?','Pembayaran ini akan dihapus dan sisa hutang dihitung ulang.','Hapus',()=>{const x=debt(d.id);x.pays=x.pays.filter(p=>p.id!==d.p);refresh()},0,1);break;
  case'lunas':{const x=debt(d.id);ask('Lunasi transaksi?',`Bayar sisa <b>${rp(rem(x))}</b> dan tandai lunas?`,'Lunasi',()=>{const r=rem(x);if(r>0)pay(x,r,'Pelunasan',Date.now(),'lunas');refresh()});break}
